@@ -1,358 +1,234 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  ShoppingBag, 
-  Utensils, 
-  ClipboardList, 
-  CheckCircle, 
-  Clock, 
-  Plus, 
-  Minus, 
-  ChevronRight,
-  QrCode,
-  ArrowLeft,
-  X,
-  ExternalLink,
-  Store,
-  Settings,
-  LayoutDashboard,
-  Link as LinkIcon,
-  Info
-} from 'lucide-react';
-
-// --- 模擬菜單數據 ---
-const MENU_DATA = [
-  {
-    id: 1,
-    name: '招牌經典牛肉堡',
-    price: 180,
-    category: '主食',
-    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&q=80',
-    description: '手工手打牛肉排，搭配鮮脆生菜與秘製醬汁。'
-  },
-  {
-    id: 2,
-    name: '松露菌菇義大利麵',
-    price: 220,
-    category: '主食',
-    image: 'https://images.unsplash.com/photo-1473093226795-af9932fe5856?w=500&q=80',
-    description: '濃郁松露香氣，搭配多種現炒菌菇。'
-  },
-  {
-    id: 3,
-    name: '酥炸黃金脆薯',
-    price: 80,
-    category: '小吃',
-    image: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500&q=80',
-    description: '外酥內軟，特選進口馬鈴薯。'
-  },
-  {
-    id: 4,
-    name: '冰萃冷泡茶',
-    price: 60,
-    category: '飲品',
-    image: 'https://images.unsplash.com/photo-1544787210-2211d7c309c7?w=500&q=80',
-    description: '低溫萃取，回甘不澀。'
-  },
-  {
-    id: 5,
-    name: '提拉米蘇',
-    price: 120,
-    category: '甜點',
-    image: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=500&q=80',
-    description: '正宗義式經典，香醇馬斯卡彭乳酪。'
-  }
-];
-
-// --- QR Code 繪製組件 (使用外部 API 生成真正可掃描的 QR) ---
-const QRCodeGenerator = ({ url, table }) => {
-  const fullUrl = `${url}?table=${table}`;
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(fullUrl)}&margin=10&bgcolor=ffffff&color=000000`;
-  
-  return (
-    <div className="flex flex-col items-center">
-      <div className="bg-white p-4 rounded-3xl shadow-xl border border-slate-100 hover:scale-105 transition-transform">
-        <img src={qrImageUrl} alt={`QR Code for Table ${table}`} className="w-48 h-48" />
-      </div>
-      <div className="mt-4 text-center">
-        <p className="text-sm font-black text-slate-800">桌號：{table}</p>
-        <p className="text-[10px] text-slate-400 mt-1 max-w-[200px] truncate">{fullUrl}</p>
-      </div>
-    </div>
-  );
-};
-
-const App = () => {
-  const [view, setView] = useState('customer'); // 'customer' or 'admin'
-  const [cart, setCart] = useState({});
-  const [orders, setOrders] = useState([]);
-  const [showCart, setShowCart] = useState(false);
-  const [orderStatus, setOrderStatus] = useState(null); 
-  const [tableNumber, setTableNumber] = useState('B-03');
-  const [siteUrl, setSiteUrl] = useState('https://your-ordering-site.com'); // 用戶未來部署的網址
-
-  // 偵測網址參數 (模擬真實掃描入座)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tableParam = params.get('table');
-    if (tableParam) {
-      setTableNumber(tableParam);
-    }
-  }, []);
-
-  const cartDetails = useMemo(() => {
-    let total = 0;
-    let count = 0;
-    const items = [];
-    Object.keys(cart).forEach(id => {
-      const item = MENU_DATA.find(m => m.id === parseInt(id));
-      if (item && cart[id] > 0) {
-        total += item.price * cart[id];
-        count += cart[id];
-        items.push({ ...item, quantity: cart[id] });
-      }
-    });
-    return { total, count, items };
-  }, [cart]);
-
-  const updateCart = (id, delta) => {
-    setCart(prev => {
-      const newQty = (prev[id] || 0) + delta;
-      if (newQty <= 0) {
-        const { [id]: _, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [id]: newQty };
-    });
-  };
-
-  const submitOrder = () => {
-    if (cartDetails.count === 0) return;
-    setOrderStatus('submitting');
-    setTimeout(() => {
-      const newOrder = {
-        id: Math.floor(1000 + Math.random() * 9000),
-        table: tableNumber,
-        items: cartDetails.items,
-        total: cartDetails.total,
-        status: 'pending',
-        time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
-      };
-      setOrders(prev => [newOrder, ...prev]);
-      setCart({});
-      setOrderStatus('success');
-      setTimeout(() => {
-        setOrderStatus(null);
-        setShowCart(false);
-      }, 2000);
-    }, 1000);
-  };
-
-  const updateOrderStatus = (orderId, newStatus) => {
-    setOrders(prev => prev.map(order => 
-      order.id === orderId ? { ...order, status: newStatus } : order
-    ));
-  };
-
-  const CustomerView = () => (
-    <div className="flex flex-col min-h-screen bg-white pb-24 font-sans text-slate-900">
-      <header className="bg-white/80 backdrop-blur-md p-5 shadow-sm sticky top-0 z-20 flex justify-between items-center border-b border-slate-100">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white">
-             <Store size={18} />
-          </div>
-          <div>
-            <h1 className="text-lg font-black tracking-tight">星空食研所</h1>
-            <p className="text-[10px] text-orange-500 font-bold flex items-center">
-              <span className="w-1.5 h-1.5 bg-orange-500 rounded-full mr-1 animate-pulse"></span>
-              內用桌號：{tableNumber}
-            </p>
-          </div>
-        </div>
-        <button 
-          onClick={() => setView('admin')} 
-          className="text-xs font-bold text-slate-400 border border-slate-200 px-3 py-1.5 rounded-full hover:bg-slate-50 transition-colors"
-        >
-          後台管理
-        </button>
-      </header>
-
-      <main className="max-w-2xl mx-auto w-full p-4 space-y-10 mt-2">
-        <div className="relative h-40 rounded-3xl overflow-hidden shadow-lg">
-          <img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80" className="w-full h-full object-cover" alt="Banner" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-6">
-            <h2 className="text-white text-xl font-bold">歡迎光臨，請開始點餐</h2>
-          </div>
-        </div>
-
-        {['主食', '小吃', '飲品', '甜點'].map(cat => (
-          <section key={cat}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xl font-black text-slate-800">{cat}</h2>
-              <div className="h-px flex-1 bg-slate-100 ml-4"></div>
-            </div>
-            <div className="grid grid-cols-1 gap-5">
-              {MENU_DATA.filter(item => item.category === cat).map(item => (
-                <div key={item.id} className="bg-white rounded-3xl p-3 flex border border-slate-100 group">
-                  <div className="relative overflow-hidden rounded-2xl w-28 h-28 shrink-0">
-                    <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                  </div>
-                  <div className="ml-4 flex-1 flex flex-col justify-between py-1">
-                    <div>
-                      <h3 className="font-bold text-slate-800 text-lg">{item.name}</h3>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-1">{item.description}</p>
-                    </div>
-                    <div className="flex justify-between items-end">
-                      <span className="text-xl font-black text-orange-500">${item.price}</span>
-                      <div className="flex items-center space-x-4 bg-slate-50 rounded-2xl p-1 px-2 border border-slate-100">
-                        <button onClick={() => updateCart(item.id, -1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm"><Minus size={14}/></button>
-                        <span className="text-sm font-black w-4 text-center">{cart[item.id] || 0}</span>
-                        <button onClick={() => updateCart(item.id, 1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm"><Plus size={14}/></button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
-      </main>
-
-      {cartDetails.count > 0 && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-lg bg-slate-900 text-white p-5 rounded-[2rem] shadow-2xl flex justify-between items-center animate-slide-up z-30 ring-4 ring-white">
-          <div className="flex items-center">
-            <div className="relative mr-4 bg-orange-500 p-2.5 rounded-2xl">
-              <ShoppingBag size={22} /><span className="absolute -top-2 -right-2 bg-white text-slate-900 text-[10px] w-6 h-6 flex items-center justify-center rounded-full font-black">{cartDetails.count}</span>
-            </div>
-            <p className="text-xl font-black">${cartDetails.total}</p>
-          </div>
-          <button onClick={() => setShowCart(true)} className="bg-white text-slate-900 px-8 py-3 rounded-2xl font-black flex items-center">結帳 <ChevronRight size={18} /></button>
-        </div>
-      )}
-
-      {showCart && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white w-full max-w-lg rounded-t-[3rem] p-8 space-y-8 animate-slide-up shadow-2xl">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-black text-slate-800">確認訂單</h2>
-              <button onClick={() => setShowCart(false)} className="p-3 bg-slate-50 rounded-2xl text-slate-400"><X size={24}/></button>
-            </div>
-            <div className="max-h-[40vh] overflow-y-auto space-y-6">
-              {cartDetails.items.map(item => (
-                <div key={item.id} className="flex justify-between items-center">
-                  <p className="font-black text-slate-800">{item.name} × {item.quantity}</p>
-                  <p className="font-black text-lg text-slate-800">${item.price * item.quantity}</p>
-                </div>
-              ))}
-            </div>
-            <div className="pt-6 border-t border-slate-100">
-              <div className="flex justify-between text-2xl font-black mb-6"><span>總計</span><span className="text-orange-500">${cartDetails.total}</span></div>
-              <button onClick={submitOrder} disabled={orderStatus === 'submitting'} className="w-full py-5 rounded-[2rem] font-black text-lg text-white bg-slate-900 hover:bg-orange-500 transition-all">
-                {orderStatus === 'submitting' ? '發送中...' : orderStatus === 'success' ? '下單成功' : '確認送出訂單'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  const AdminView = () => (
-    <div className="flex flex-col md:flex-row min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
-      <aside className="w-full md:w-64 bg-slate-900 text-white p-6 md:fixed md:h-full flex flex-col">
-        <div className="flex items-center space-x-3 mb-10 px-2"><div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center"><Utensils size={24} /></div><h1 className="font-black text-xl tracking-tighter">POS 系統</h1></div>
-        <nav className="flex-1 space-y-2">
-          <button className="w-full flex items-center space-x-3 bg-orange-500 text-white p-4 rounded-2xl font-bold"><LayoutDashboard size={20} /> <span>訂單概覽</span></button>
-          <button className="w-full flex items-center space-x-3 text-slate-400 p-4 rounded-2xl font-bold hover:bg-slate-800 transition-colors"><Settings size={20} /> <span>桌位 QR Code</span></button>
-        </nav>
-        <button onClick={() => setView('customer')} className="mt-10 md:mt-auto flex items-center justify-center space-x-2 bg-slate-800 text-slate-300 p-4 rounded-2xl font-bold hover:bg-slate-700"><ArrowLeft size={18}/> <span>返回前台</span></button>
-      </aside>
-
-      <main className="flex-1 md:ml-64 p-6 md:p-10 space-y-10">
-        <header>
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight">訂單與 QR 管理</h2>
-          <p className="text-slate-400 font-medium">即時接收訂單與設定桌位 QR Code</p>
-        </header>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
-          <div className="xl:col-span-2 space-y-6">
-            <h3 className="text-lg font-black text-slate-500 flex items-center"><ClipboardList size={20} className="mr-2" /> 待處理訂單</h3>
-            {orders.length === 0 ? (
-              <div className="bg-white rounded-[2rem] p-20 text-center border-2 border-dashed border-slate-200 text-slate-300 font-bold">🎉 目前沒有待處理訂單</div>
-            ) : (
-              orders.map(order => (
-                <div key={order.id} className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="p-6 bg-slate-50/50 flex justify-between items-center">
-                    <span className="font-black">桌號：{order.table} <span className="text-slate-400 font-normal">#{order.id}</span></span>
-                    <button onClick={() => setOrders(prev => prev.filter(o => o.id !== order.id))} className="text-slate-400"><X size={20}/></button>
-                  </div>
-                  <div className="p-8">
-                    <div className="space-y-2 mb-6">
-                      {order.items.map((it, i) => <div key={i} className="flex justify-between font-bold"><span>{it.name} x {it.quantity}</span><span>${it.price * it.quantity}</span></div>)}
-                    </div>
-                    <div className="pt-6 border-t flex justify-between items-center"><span className="font-black text-2xl">${order.total}</span><button className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-sm">確認訂單</button></div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="space-y-8">
-            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-              <h3 className="font-black text-slate-800 mb-6 flex items-center"><QrCode size={20} className="mr-3 text-orange-500" /> 設定與生成</h3>
-              
-              <div className="space-y-6">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 block">部署後的網站網址</label>
-                  <div className="relative">
-                    <LinkIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input 
-                      type="text" 
-                      value={siteUrl} 
-                      onChange={(e) => setSiteUrl(e.target.value)}
-                      placeholder="https://your-website.vercel.app"
-                      className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3 pl-10 pr-4 text-xs font-bold focus:ring-2 focus:ring-orange-500 outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-50 flex flex-col items-center">
-                  <QRCodeGenerator url={siteUrl} table={tableNumber} />
-                  <div className="mt-6 w-full space-y-3">
-                    <button onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(siteUrl + '?table=' + tableNumber)}`)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs flex items-center justify-center"><ExternalLink size={14} className="mr-2"/>下載高解析度列印版</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-blue-600 p-8 rounded-[2rem] text-white shadow-xl shadow-blue-200">
-              <div className="flex items-start space-x-3">
-                <Info size={24} className="shrink-0 opacity-80" />
-                <div>
-                  <h4 className="font-black text-lg mb-2">為什麼現在不能掃？</h4>
-                  <p className="text-xs text-blue-100 leading-relaxed font-medium">
-                    目前的 QR Code 連結到的是一個示範網址。請先將這個 React 程式碼部署到 Vercel 或 Netlify，獲取你自己的網址後，在上方輸入框貼上該網址。
-                    之後生成的 QR Code 就能讓手機直接掃描並進入點餐系統了！
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-
-  return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星空食研所 - QR Code 點餐系統</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Lucide 圖示 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- 引入 Google 字體 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
         body { font-family: 'Noto Sans TC', sans-serif; }
-        @keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .animate-slide-up { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
-      `}</style>
-      {view === 'customer' ? <CustomerView /> : <AdminView />}
-    </>
-  );
-};
+        @keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-gray-50">
 
-export default App;
+    <div id="app">
+        <!-- 內容由 JavaScript 動態生成 -->
+    </div>
+
+    <script>
+        // --- 數據設定 ---
+        const MENU_DATA = [
+            { id: 1, name: '招牌經典牛肉堡', price: 180, category: '主食', image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&q=80', description: '手工手打牛肉排，搭配鮮脆生菜與秘製醬汁。' },
+            { id: 2, name: '松露菌菇義大利麵', price: 220, category: '主食', image: 'https://images.unsplash.com/photo-1473093226795-af9932fe5856?w=500&q=80', description: '濃郁松露香氣，搭配多種現炒菌菇。' },
+            { id: 3, name: '酥炸黃金脆薯', price: 80, category: '小吃', image: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500&q=80', description: '外酥內軟，特選進口馬鈴薯。' },
+            { id: 4, name: '冰萃冷泡茶', price: 60, category: '飲品', image: 'https://images.unsplash.com/photo-1544787210-2211d7c309c7?w=500&q=80', description: '低溫萃取，回甘不澀。' },
+            { id: 5, name: '提拉米蘇', price: 120, category: '甜點', image: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=500&q=80', description: '正宗義式經典，香醇馬斯卡彭乳酪。' }
+        ];
+
+        let state = {
+            view: 'customer', // 'customer' or 'admin'
+            cart: {},
+            orders: [],
+            tableNumber: 'B-03',
+            siteUrl: window.location.href.split('?')[0]
+        };
+
+        // --- 初始化桌號偵測 ---
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('table')) state.tableNumber = params.get('table');
+
+        // --- 核心渲染函數 ---
+        function render() {
+            const app = document.getElementById('app');
+            if (state.view === 'customer') {
+                app.innerHTML = renderCustomerView();
+            } else {
+                app.innerHTML = renderAdminView();
+            }
+            lucide.createIcons(); // 重新渲染圖示
+        }
+
+        // --- 前台畫面 ---
+        function renderCustomerView() {
+            const cartDetails = getCartDetails();
+            return `
+                <div class="flex flex-col min-h-screen bg-white pb-24">
+                    <header class="bg-white/80 backdrop-blur-md p-5 shadow-sm sticky top-0 z-20 flex justify-between items-center border-b">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white"><i data-lucide="store" size="18"></i></div>
+                            <div>
+                                <h1 class="text-lg font-black tracking-tight">星空食研所</h1>
+                                <p class="text-[10px] text-orange-500 font-bold flex items-center">
+                                    <span class="w-1.5 h-1.5 bg-orange-500 rounded-full mr-1 animate-pulse"></span>
+                                    內用桌號：${state.tableNumber}
+                                </p>
+                            </div>
+                        </div>
+                        <button onclick="switchView('admin')" class="text-xs font-bold text-slate-400 border border-slate-200 px-3 py-1.5 rounded-full hover:bg-slate-50">管理後台</button>
+                    </header>
+
+                    <main class="max-w-2xl mx-auto w-full p-4 space-y-8 mt-2">
+                        <div class="relative h-40 rounded-3xl overflow-hidden shadow-lg">
+                            <img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80" class="w-full h-full object-cover">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/60 flex items-end p-6"><h2 class="text-white text-xl font-bold">歡迎光臨，請開始點餐</h2></div>
+                        </div>
+
+                        ${['主食', '小吃', '飲品', '甜點'].map(cat => `
+                            <section>
+                                <h2 class="text-xl font-black text-slate-800 mb-5">${cat}</h2>
+                                <div class="grid grid-cols-1 gap-4">
+                                    ${MENU_DATA.filter(i => i.category === cat).map(item => `
+                                        <div class="bg-white rounded-3xl p-3 flex border border-slate-100 shadow-sm">
+                                            <img src="${item.image}" class="w-24 h-24 object-cover rounded-2xl">
+                                            <div class="ml-4 flex-1 flex flex-col justify-between">
+                                                <div>
+                                                    <h3 class="font-bold text-slate-800">${item.name}</h3>
+                                                    <p class="text-[11px] text-slate-400 line-clamp-1">${item.description}</p>
+                                                </div>
+                                                <div class="flex justify-between items-end">
+                                                    <span class="text-lg font-black text-orange-500">$${item.price}</span>
+                                                    <div class="flex items-center space-x-3 bg-slate-50 rounded-xl p-1 px-2">
+                                                        <button onclick="updateCart(${item.id}, -1)" class="w-6 h-6 bg-white rounded-lg shadow-sm flex items-center justify-center"><i data-lucide="minus" size="12"></i></button>
+                                                        <span class="text-xs font-bold">${state.cart[item.id] || 0}</span>
+                                                        <button onclick="updateCart(${item.id}, 1)" class="w-6 h-6 bg-white rounded-lg shadow-sm flex items-center justify-center"><i data-lucide="plus" size="12"></i></button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </section>
+                        `).join('')}
+                    </main>
+
+                    ${cartDetails.count > 0 ? `
+                        <div class="fixed bottom-8 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-lg bg-slate-900 text-white p-5 rounded-[2rem] shadow-2xl flex justify-between items-center animate-slide-up z-30 ring-4 ring-white">
+                            <div class="flex items-center">
+                                <div class="relative mr-4 bg-orange-500 p-2.5 rounded-2xl">
+                                    <i data-lucide="shopping-bag" size="22"></i>
+                                    <span class="absolute -top-2 -right-2 bg-white text-slate-900 text-[10px] w-6 h-6 flex items-center justify-center rounded-full font-black">${cartDetails.count}</span>
+                                </div>
+                                <p class="text-xl font-black">$${cartDetails.total}</p>
+                            </div>
+                            <button onclick="submitOrder()" class="bg-white text-slate-900 px-8 py-3 rounded-2xl font-black">送出訂單</button>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // --- 後台畫面 ---
+        function renderAdminView() {
+            const qrUrl = `${state.siteUrl}${state.siteUrl.includes('?') ? '&' : '?'}table=${state.tableNumber}`;
+            const qrImage = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}&margin=10`;
+
+            return `
+                <div class="flex flex-col md:flex-row min-h-screen bg-slate-50">
+                    <aside class="w-full md:w-64 bg-slate-900 text-white p-6 flex flex-col">
+                        <div class="flex items-center space-x-3 mb-10"><div class="bg-orange-500 p-2 rounded-lg"><i data-lucide="utensils"></i></div><h1 class="font-black text-xl">管理系統</h1></div>
+                        <nav class="flex-1 space-y-4">
+                            <div class="flex items-center space-x-3 text-orange-500 bg-white/5 p-4 rounded-xl font-bold"><i data-lucide="layout-dashboard" size="20"></i><span>訂單管理</span></div>
+                        </nav>
+                        <button onclick="switchView('customer')" class="mt-10 flex items-center justify-center space-x-2 bg-slate-800 p-4 rounded-xl font-bold text-slate-400 hover:text-white transition-colors">
+                            <i data-lucide="arrow-left" size="18"></i><span>回首頁</span>
+                        </button>
+                    </aside>
+
+                    <main class="flex-1 p-6 md:p-10 space-y-10">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                            <div>
+                                <h2 class="text-2xl font-black mb-6 flex items-center"><i data-lucide="clipboard-list" class="mr-2 text-orange-500"></i>即時訂單</h2>
+                                ${state.orders.length === 0 ? '<div class="bg-white p-10 rounded-3xl text-center text-slate-300 font-bold border-2 border-dashed">目前無訂單</div>' : 
+                                    state.orders.map(o => `
+                                        <div class="bg-white p-6 rounded-3xl shadow-sm border mb-4">
+                                            <div class="flex justify-between font-black mb-4"><span>桌號：${o.table}</span><span class="text-slate-400">#${o.id}</span></div>
+                                            <div class="text-sm space-y-1 mb-4">${o.items.map(it => `<div class="flex justify-between"><span>${it.name} x ${it.quantity}</span><span>$${it.price * it.quantity}</span></div>`).join('')}</div>
+                                            <div class="pt-4 border-t flex justify-between items-center"><span class="font-black text-xl">$${o.total}</span><span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-full">製作中</span></div>
+                                        </div>
+                                    `).join('')
+                                }
+                            </div>
+
+                            <div class="bg-white p-8 rounded-3xl shadow-sm border h-fit">
+                                <h2 class="text-xl font-black mb-6 flex items-center"><i data-lucide="qr-code" class="mr-2 text-orange-500"></i>QR Code 設定</h2>
+                                <div class="space-y-6">
+                                    <div>
+                                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">部署網址</label>
+                                        <input type="text" id="urlInput" value="${state.siteUrl}" onchange="updateUrl(this.value)" class="w-full bg-slate-50 border p-3 rounded-xl text-xs font-mono outline-none focus:ring-2 focus:ring-orange-500">
+                                    </div>
+                                    <div class="flex flex-col items-center p-4 bg-slate-50 rounded-2xl">
+                                        <img src="${qrImage}" class="w-48 h-48 bg-white p-2 rounded-xl shadow-inner">
+                                        <p class="mt-4 text-sm font-black text-slate-800">桌號：${state.tableNumber}</p>
+                                        <p class="text-[10px] text-slate-400 mt-1 max-w-[200px] truncate">${qrUrl}</p>
+                                    </div>
+                                    <button onclick="window.open('${qrImage}')" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs flex items-center justify-center hover:bg-orange-500 transition-colors">
+                                        <i data-lucide="external-link" size="14" class="mr-2"></i>下載 QR Code 圖片
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            `;
+        }
+
+        // --- 邏輯函數 ---
+        function updateCart(id, delta) {
+            const current = state.cart[id] || 0;
+            const next = current + delta;
+            if (next <= 0) delete state.cart[id];
+            else state.cart[id] = next;
+            render();
+        }
+
+        function getCartDetails() {
+            let total = 0, count = 0, items = [];
+            Object.keys(state.cart).forEach(id => {
+                const item = MENU_DATA.find(m => m.id === parseInt(id));
+                if (item) {
+                    total += item.price * state.cart[id];
+                    count += state.cart[id];
+                    items.push({ ...item, quantity: state.cart[id] });
+                }
+            });
+            return { total, count, items };
+        }
+
+        function submitOrder() {
+            const details = getCartDetails();
+            const newOrder = {
+                id: Math.floor(Math.random() * 9000) + 1000,
+                table: state.tableNumber,
+                items: details.items,
+                total: details.total
+            };
+            state.orders.push(newOrder);
+            state.cart = {};
+            // 這裡可以加入簡單的動畫或通知
+            alert('訂單已送出！桌號：' + state.tableNumber);
+            render();
+        }
+
+        function switchView(view) {
+            state.view = view;
+            render();
+        }
+
+        function updateUrl(url) {
+            state.siteUrl = url;
+            render();
+        }
+
+        // 初始渲染
+        window.onload = render;
+    </script>
+</body>
+</html>
